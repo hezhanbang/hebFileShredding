@@ -53,6 +53,7 @@ func eraseFiles(argStartIndex int, deepErase bool) int {
 		printf("failed to open txt file, err=%s", err)
 		return -1
 	}
+	defer readFile.Close()
 
 	fileScanner := bufio.NewScanner(readFile)
 
@@ -62,15 +63,17 @@ func eraseFiles(argStartIndex int, deepErase bool) int {
 		//fmt.Println(fileScanner.Text())
 
 		path := fileScanner.Text()
-		eraseOneFile(path)
+		ret = eraseOneFile(path)
+		if 0 != ret {
+			printf("failed to eraseOneFile %s, ret=%d", path, ret)
+			return -2
+		}
 	}
 
 	if nil != fileScanner.Err() {
 		printf("failed to Scan txt file, err=%s", fileScanner.Err())
-		return -2
+		return -3
 	}
-
-	readFile.Close()
 
 	printf("***************************")
 	printf("********** Done ***********")
@@ -102,6 +105,13 @@ func eraseOneFile(path string) int {
 		}
 		return -1
 	}
+
+	defer func() {
+		if nil != fd {
+			fd.Close()
+			fd = nil
+		}
+	}()
 
 	sta, err2 := fd.Stat()
 	if nil != err2 {
