@@ -13,7 +13,7 @@ func main() {
 	}
 
 	//获得顶级指令
-	cmd, index := getTopCommand(gHebCfg.exeName)
+	cmd, otherArgs := getTopCommand(gHebCfg.exeName)
 	ret := 100
 
 	//myTest()
@@ -25,11 +25,9 @@ func main() {
 
 	//调用子命令模块
 	if "listfile" == cmd {
-		ret = gHebList.do(index + 1)
+		ret = gHebList.do(otherArgs)
 	} else if "erase" == cmd {
-		ret = gHebErase.do(index+1, false)
-	} else if "deepErase" == cmd {
-		ret = gHebErase.do(index+1, true)
+		ret = gHebErase.do(otherArgs)
 	} else {
 		ret = cmdUsage()
 	}
@@ -48,36 +46,46 @@ func cmdUsage() int {
 		fmt.Printf("deepErase: it will only erase some of data at the middle of file randomly\n")
 	*/
 	fmt.Printf("本软件用于粉碎文件夹里的全部文件内容。\n\n")
-	fmt.Printf("请使用如下的任意一个参数: listfile / erase / deepErase\n\n")
+	fmt.Printf("请使用如下的任意一个参数: listfile / erase\n\n")
 	fmt.Printf(" listfile: 列出当前文件夹下的全部文件，并记录到[hebEraseData/listfile.txt]\n")
-	fmt.Printf("    erase: 根据[listfile.txt]，擦写文件开头1MB内容和文件结尾1MB内容\n")
-	fmt.Printf("deepErase: 根据[listfile.txt]，擦写文件中间段的内容，以随机的方式修改少量数据\n")
+	fmt.Printf("    erase: 根据[listfile.txt]，擦写文件内容\n")
 
 	return 101
 }
 
 // 从命令行里获取顶层命令
-func getTopCommand(exeNotExt string) (cmd string, location int) {
+func getTopCommand(exeNotExt string) (retCmd string, retOtherArgs []string) {
 	/*
 		./xxxx.out listfile
 		bash ./xxxx.out listfile
 	*/
 
+	retCmd = ""
+	retOtherArgs = nil
+
 	if strings.HasSuffix(strings.ToLower(exeNotExt), ".exe") || strings.HasSuffix(strings.ToLower(exeNotExt), ".out") {
 		exeNotExt = exeNotExt[0 : len(exeNotExt)-4]
 	}
+	allArgLen := len(os.Args)
 
 	//第一个参数一般是可执行文件，顶层命令位于第二个参数。
-	if len(os.Args) < 2 {
-		return "", -1
+	if allArgLen < 2 {
+		return
 	}
 	if !strings.Contains(os.Args[1], exeNotExt) {
-		return os.Args[1], 1
+		retCmd = os.Args[1]
+		if allArgLen >= 3 {
+			retOtherArgs = os.Args[2:]
+		}
 	}
 
 	//第二个参数是可执行文件，顶层命令位于第三个参数。
 	if len(os.Args) < 3 {
-		return "", -2
+		return "", nil
 	}
-	return os.Args[2], 2
+	retCmd = os.Args[2]
+	if allArgLen >= 4 {
+		retOtherArgs = os.Args[3:]
+	}
+	return
 }

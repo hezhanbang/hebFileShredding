@@ -82,8 +82,8 @@ func (this *hebEraseContext) init(deepErase bool) int {
 	return 0
 }
 
-func (this *hebEraseContext) do(argStartIndex int, deepErase bool) int {
-	if ret := this.init(deepErase); 0 != ret {
+func (this *hebEraseContext) do(args []string) int {
+	if ret := this.init(false); 0 != ret {
 		return -1
 	}
 

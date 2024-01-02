@@ -15,7 +15,7 @@ type hebListContext struct {
 	fileIndex int
 }
 
-func (this *hebListContext) do(argStartIndex int) int {
+func (this *hebListContext) do(args []string) int {
 	//create list file
 	{
 		var err error
