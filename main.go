@@ -77,6 +77,7 @@ func getTopCommand(exeNotExt string) (retCmd string, retOtherArgs []string) {
 		if allArgLen >= 3 {
 			retOtherArgs = os.Args[2:]
 		}
+		return
 	}
 
 	//第二个参数是可执行文件，顶层命令位于第三个参数。

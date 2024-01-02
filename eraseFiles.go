@@ -202,12 +202,12 @@ func (this *hebEraseContext) eraseOneFile(path string) int {
 func (this *hebEraseContext) openFileNeedToErase(pathNeedErease string) (retDd *os.File, retErr bool) {
 	fd, err := os.OpenFile(pathNeedErease, os.O_RDWR, 0644)
 	if nil == err {
-		return fd, true
+		return fd, false
 	}
 
 	if errors.Is(err, os.ErrNotExist) {
 		printf("skipped the file, because it does not exist, No.=%d %s", this.fileIndex+1, pathNeedErease)
-		return nil, true
+		return nil, false
 	}
 
 	//没有权限，尝试更改文件权限，然后再次打开文件。
@@ -215,20 +215,20 @@ func (this *hebEraseContext) openFileNeedToErase(pathNeedErease string) (retDd *
 		err = os.Chmod(pathNeedErease, 0644)
 		if nil != err {
 			printf("failed to Chmod file to erase, err=%s", err)
-			return nil, false
+			return nil, true
 		}
 
 		fd, err = os.OpenFile(pathNeedErease, os.O_RDWR, 0644)
 		if nil != err {
 			printf("failed to open file again to erase, err=%s", err)
-			return nil, false
+			return nil, true
 		}
 	} else {
 		printf("failed to open file to erase, err=%s", err)
-		return nil, false
+		return nil, true
 	}
 
-	return fd, true
+	return fd, false
 }
 
 // 开始擦除单个文件
