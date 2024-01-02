@@ -31,3 +31,9 @@ func printf(format string, a ...any) {
 	}
 	fmt.Print(all)
 }
+
+func assert(ok bool) {
+	if false == ok {
+		panic(false)
+	}
+}

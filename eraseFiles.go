@@ -129,30 +129,9 @@ func (this *hebEraseContext) do(argStartIndex int, deepErase bool) int {
 
 func (this *hebEraseContext) eraseOneFile(path string) int {
 	//打开需要被擦除的文件
-	fd, err := os.OpenFile(path, os.O_RDWR, 0644)
-	if nil != err {
-		if errors.Is(err, os.ErrNotExist) {
-			printf("skipped the file, because it does not exist, No.=%d %s", this.fileIndex+1, path)
-			return 0
-		}
-
-		//没有权限，尝试更改文件权限，然后再次打开文件。
-		if errors.Is(err, os.ErrPermission) {
-			err = os.Chmod(path, 0644)
-			if nil != err {
-				printf("failed to Chmod file to erase, err=%s", err)
-				return -1
-			}
-
-			fd, err = os.OpenFile(path, os.O_RDWR, 0644)
-			if nil != err {
-				printf("failed to open file again to erase, err=%s", err)
-				return -2
-			}
-		} else {
-			printf("failed to open file to erase, err=%s", err)
-			return -3
-		}
+	fd, ok := this.openFileNeedToErase(path)
+	if ok && nil == fd {
+		return 0
 	}
 
 	defer func() {
@@ -163,10 +142,10 @@ func (this *hebEraseContext) eraseOneFile(path string) int {
 	}()
 
 	//检查文件信息
-	sta, err2 := fd.Stat()
-	if nil != err2 {
+	sta, err := fd.Stat()
+	if nil != err {
 		printf("failed to get file info to erase, err=%s", err)
-		return -4
+		return -1
 	}
 
 	if sta.IsDir() {
@@ -181,64 +160,127 @@ func (this *hebEraseContext) eraseOneFile(path string) int {
 	}
 
 	//开始擦除
+	ret := this.eraseNow(path, fd, filesize)
+	if 0 != ret {
+		return -2
+	}
+
+	return 0
+}
+
+// 打开需要被擦除的文件
+func (this *hebEraseContext) openFileNeedToErase(pathNeedErease string) (retDd *os.File, retOK bool) {
+	fd, err := os.OpenFile(pathNeedErease, os.O_RDWR, 0644)
+	if nil == err {
+		return fd, true
+	}
+
+	if errors.Is(err, os.ErrNotExist) {
+		printf("skipped the file, because it does not exist, No.=%d %s", this.fileIndex+1, pathNeedErease)
+		return nil, true
+	}
+
+	//没有权限，尝试更改文件权限，然后再次打开文件。
+	if errors.Is(err, os.ErrPermission) {
+		err = os.Chmod(pathNeedErease, 0644)
+		if nil != err {
+			printf("failed to Chmod file to erase, err=%s", err)
+			return nil, false
+		}
+
+		fd, err = os.OpenFile(pathNeedErease, os.O_RDWR, 0644)
+		if nil != err {
+			printf("failed to open file again to erase, err=%s", err)
+			return nil, false
+		}
+	} else {
+		printf("failed to open file to erase, err=%s", err)
+		return nil, false
+	}
+
+	return fd, true
+}
+
+func (this *hebEraseContext) eraseNow(pathNeedErease string, fd *os.File, filesize int64) int {
 	if filesize <= this.dataSizeNeedToErase { //文件很小，擦除文件的全部内容
-		ret := this.erasePart(path, fd, 0, filesize, this.zeroDataForFileStarting)
+		ret := this.writeZeroToFile(pathNeedErease, fd, 0, filesize, this.zeroDataForFileStarting)
 		if 0 != ret {
-			return -15
+			return -1
 		}
 	} else if filesize >= this.dataSizeNeedToErase*2 { //文件很大
-		if false == this.deepEraseMode {
-			//填充文件开始1MB的数据
-			ret := this.erasePart(path, fd, 0, this.dataSizeNeedToErase, this.zeroDataForFileStarting)
-			if 0 != ret {
-				return -16
-			}
-			//填充文件末尾1MB的数据
-			ret = this.erasePart(path, fd, filesize-this.dataSizeNeedToErase, this.dataSizeNeedToErase, this.zeroDataForFileEnding)
-			if 0 != ret {
-				return -17
-			}
-		} else {
-			//深度擦写，随机擦写文件中间的个别内容
+		ret := this.eraseBigFile(pathNeedErease, fd, filesize)
+		if 0 != ret {
+			return -2
+		}
+	}
+	return 0
+}
 
-			ranMax := new(big.Int)
-			ranMax.SetUint64(1000)
-
-			zero := []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
-
-			step := this.dataSizeNeedToErase + 123
-
-			total := filesize - this.dataSizeNeedToErase*2
-			total = total - int64(len(zero)) - 2
-
-			for cur := step; cur < total; cur += step {
-				fileOffset := this.dataSizeNeedToErase + cur
-				count, err := fd.WriteAt(zero, fileOffset)
-				if err != nil || count != len(zero) {
-					printf("failed to write file deeply [%s] err=%s", path, err)
-					return -1
-				}
-				number, err := rand.Int(rand.Reader, ranMax)
-				if nil == err && nil != number {
-					ranKey := number.Int64()
-					//fmt.Printf("new rank key=%d\n", ranKey)
-					cur += ranKey
-				}
-			}
+// 擦除大文件
+func (this *hebEraseContext) eraseBigFile(pathNeedErease string, fd *os.File, filesize int64) int {
+	if false == this.deepEraseMode {
+		//填充文件开始1MB的数据
+		ret := this.writeZeroToFile(pathNeedErease, fd, 0, this.dataSizeNeedToErase, this.zeroDataForFileStarting)
+		if 0 != ret {
+			return -1
+		}
+		//填充文件末尾1MB的数据
+		ret = this.writeZeroToFile(pathNeedErease, fd, filesize-this.dataSizeNeedToErase, this.dataSizeNeedToErase, this.zeroDataForFileEnding)
+		if 0 != ret {
+			return -2
+		}
+	} else {
+		//深度擦写，随机擦写文件中间的个别内容
+		ret := this.randomErase(pathNeedErease, fd, filesize)
+		if 0 != ret {
+			return -3
 		}
 	}
 
 	return 0
 }
 
-func (this *hebEraseContext) erasePart(path string, fd *os.File, startIndex, len int64, zeroArray []byte) int {
+// 深度擦写，随机擦写文件中间的个别内容
+func (this *hebEraseContext) randomErase(pathNeedErease string, fd *os.File, filesize int64) int {
+	ranMax := new(big.Int)
+	ranMax.SetUint64(1000)
+
+	zero := []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+
+	step := this.dataSizeNeedToErase + 123
+
+	//跳过文件开头和末尾
+	total := filesize - this.dataSizeNeedToErase*2
+	total = total - int64(len(zero)) - 2
+
+	for cur := step; cur < total; cur += step {
+		fileOffset := this.dataSizeNeedToErase + cur //跳过文件开头
+
+		//擦除文件局部
+		ret := this.writeZeroToFile(pathNeedErease, fd, fileOffset, int64(len(zero)), zero)
+		if 0 != ret {
+			return -1
+		}
+
+		//生成随机数，随机调到文件的下一个位置
+		number, err := rand.Int(rand.Reader, ranMax)
+		assert(nil == err && nil != number)
+		ranKey := number.Int64()
+		//fmt.Printf("new rank key=%d\n", ranKey)
+		cur += ranKey
+	}
+
+	return 0
+}
+
+func (this *hebEraseContext) writeZeroToFile(path string, fd *os.File, startIndex, len int64, zeroArray []byte) int {
 	array := zeroArray
 	if len < this.dataSizeNeedToErase {
 		array = zeroArray[:len]
 	}
 	count, err := fd.WriteAt(array, startIndex)
 	if err != nil || int64(count) != len {
-		printf("failed to write file [%s] err=%s", path, err)
+		printf("failed to write zero to file [%s] err=%s", path, err)
 		return -1
 	}
 
