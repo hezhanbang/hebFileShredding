@@ -80,9 +80,9 @@ func main() {
 	if "listfile" == cmd {
 		ret = gHebList.do(index + 1)
 	} else if "erase" == cmd {
-		ret = eraseFiles(index+1, false)
+		ret = gHebErase.do(index+1, false)
 	} else if "deepErase" == cmd {
-		ret = eraseFiles(index+1, true)
+		ret = gHebErase.do(index+1, true)
 	} else {
 		ret = cmdUsage()
 	}

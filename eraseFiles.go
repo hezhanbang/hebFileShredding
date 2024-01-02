@@ -6,62 +6,113 @@ import (
 	"errors"
 	"math/big"
 	"os"
+	"strings"
 )
 
-var gHebMB int64 = (1024 * 1024)
-var gHebZeroArray_start []byte
-var gHebZeroArray_end []byte
-var gHebDeepErase = false
+var gHebErase hebEraseContext
+
+type hebEraseContext struct {
+	dataSizeNeedToErase     int64
+	zeroDataForFileStarting []byte
+	zeroDataForFileEnding   []byte
+	deepEraseMode           bool
+
+	fd        *os.File
+	fileIndex int
+	total     int
+}
 
 /*
 用全零填充文件开始1MB的数据，
 用全零填充文件末尾1MB的数据，
 文件中间的数据不处理。
 */
-func eraseFiles(argStartIndex int, deepErase bool) int {
-	gHebDeepErase = deepErase
+func (this *hebEraseContext) init(deepErase bool) int {
+	this.deepEraseMode = deepErase
 
-	//zero 1
-	gHebZeroArray_start = make([]byte, gHebMB)
-	for i := int64(0); i < gHebMB; i++ {
-		gHebZeroArray_start[i] = 0
+	this.dataSizeNeedToErase = (1024 * 1024)
+
+	//生成用于填充文件开始1MB的零数据。
+	this.zeroDataForFileStarting = make([]byte, this.dataSizeNeedToErase)
+	for i := int64(0); i < this.dataSizeNeedToErase; i++ {
+		this.zeroDataForFileStarting[i] = 0
 	}
+	//在最开始处，添加一个标识。
 	mark := []byte("File Shredding start \n\n")
 	for i := 0; i < len(mark); i++ {
-		gHebZeroArray_start[i] = mark[i]
+		this.zeroDataForFileStarting[i] = mark[i]
 	}
 
-	//zero 2
-	gHebZeroArray_end = make([]byte, gHebMB)
-	for i := int64(0); i < gHebMB; i++ {
-		gHebZeroArray_end[i] = 0
+	//生成用于填充文件末尾1MB的零数据。
+	this.zeroDataForFileEnding = make([]byte, this.dataSizeNeedToErase)
+	for i := int64(0); i < this.dataSizeNeedToErase; i++ {
+		this.zeroDataForFileEnding[i] = 0
 	}
+	//在最末尾处，添加一个标识。
 	mark = []byte("\n\nFile Shredding end\n")
-	offset := int(gHebMB) - len(mark)
+	offset := int(this.dataSizeNeedToErase) - len(mark)
 	for i := 0; i < len(mark); i++ {
-		gHebZeroArray_end[offset+i] = mark[i]
+		this.zeroDataForFileEnding[offset+i] = mark[i]
 	}
 
-	readFile, err := os.Open(gHebCfg.fileAboutListFile)
+	fd, err := os.Open(gHebCfg.fileAboutListFile)
 	if nil != err {
-		printf("failed to open txt file, err=%s", err)
+		printf("failed to open listfile.txt, err=%s", err)
 		return -1
 	}
-	defer readFile.Close()
+	this.fd = fd
 
-	fileScanner := bufio.NewScanner(readFile)
+	//获取需要被擦除的文件总数。
+	{
+		this.openListFile()
+		//逐行读取文本文件
+		fileScanner := bufio.NewScanner(this.fd)
+		fileScanner.Split(bufio.ScanLines)
 
+		for fileScanner.Scan() {
+			fileNeedToErase := fileScanner.Text()
+			_, ok := this.needErase(fileNeedToErase)
+			if ok {
+				this.total++
+			}
+		}
+
+		if nil != fileScanner.Err() {
+			printf("failed to Scan txt file, err=%s", fileScanner.Err())
+			return -3
+		}
+	}
+
+	return 0
+}
+
+func (this *hebEraseContext) do(argStartIndex int, deepErase bool) int {
+	if ret := this.init(deepErase); 0 != ret {
+		return -1
+	}
+	defer this.fd.Close()
+
+	//逐行读取文本文件
+	fileScanner := bufio.NewScanner(this.fd)
 	fileScanner.Split(bufio.ScanLines)
+	ok := false
 
 	for fileScanner.Scan() {
-		//fmt.Println(fileScanner.Text())
+		fileNeedToErase := fileScanner.Text()
+		printf("erasing (%d/%d): %s", this.fileIndex, this.total, fileNeedToErase)
 
-		path := fileScanner.Text()
-		ret := eraseOneFile(path)
+		fileNeedToErase, ok = this.needErase(fileNeedToErase)
+		if false == ok {
+			printf("skip the file %s", fileNeedToErase)
+			continue
+		}
+
+		ret := this.eraseOneFile(fileNeedToErase)
 		if 0 != ret {
-			printf("failed to eraseOneFile %s, ret=%d", path, ret)
+			printf("failed to erase one file, index=%d, %s, ret=%d", this.fileIndex, fileNeedToErase, ret)
 			return -2
 		}
+		this.fileIndex++
 	}
 
 	if nil != fileScanner.Err() {
@@ -75,13 +126,15 @@ func eraseFiles(argStartIndex int, deepErase bool) int {
 	return 0
 }
 
-func eraseOneFile(path string) int {
+func (this *hebEraseContext) eraseOneFile(path string) int {
+	//打开需要被擦除的文件
 	fd, err := os.OpenFile(path, os.O_RDWR, 0644)
 	if nil != err {
 		if errors.Is(err, os.ErrNotExist) {
 			return 0
 		}
 
+		//没有权限，尝试更改文件权限，然后再次打开文件。
 		if errors.Is(err, os.ErrPermission) {
 			err = os.Chmod(path, 0644)
 			if nil != err {
@@ -96,8 +149,8 @@ func eraseOneFile(path string) int {
 			}
 		} else {
 			printf("failed to open file to erase, err=%s", err)
+			return -3
 		}
-		return -1
 	}
 
 	defer func() {
@@ -107,10 +160,11 @@ func eraseOneFile(path string) int {
 		}
 	}()
 
+	//检查文件信息
 	sta, err2 := fd.Stat()
 	if nil != err2 {
 		printf("failed to get file info to erase, err=%s", err)
-		return -3
+		return -4
 	}
 
 	if sta.IsDir() {
@@ -122,20 +176,21 @@ func eraseOneFile(path string) int {
 		return 0
 	}
 
-	if filesize <= gHebMB {
-		ret := erasePart(path, fd, 0, filesize, gHebZeroArray_start)
+	//开始擦除
+	if filesize <= this.dataSizeNeedToErase { //文件很小，擦除文件的全部内容
+		ret := this.erasePart(path, fd, 0, filesize, this.zeroDataForFileStarting)
 		if 0 != ret {
 			return -15
 		}
-	} else if filesize >= gHebMB*2 {
-		if false == gHebDeepErase {
+	} else if filesize >= this.dataSizeNeedToErase*2 { //文件很大
+		if false == this.deepEraseMode {
 			//填充文件开始1MB的数据
-			ret := erasePart(path, fd, 0, gHebMB, gHebZeroArray_start)
+			ret := this.erasePart(path, fd, 0, this.dataSizeNeedToErase, this.zeroDataForFileStarting)
 			if 0 != ret {
 				return -16
 			}
 			//填充文件末尾1MB的数据
-			ret = erasePart(path, fd, filesize-gHebMB, gHebMB, gHebZeroArray_end)
+			ret = this.erasePart(path, fd, filesize-this.dataSizeNeedToErase, this.dataSizeNeedToErase, this.zeroDataForFileEnding)
 			if 0 != ret {
 				return -17
 			}
@@ -147,13 +202,13 @@ func eraseOneFile(path string) int {
 
 			zero := []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 
-			step := gHebMB + 123
+			step := this.dataSizeNeedToErase + 123
 
-			total := filesize - gHebMB*2
+			total := filesize - this.dataSizeNeedToErase*2
 			total = total - int64(len(zero)) - 2
 
 			for cur := step; cur < total; cur += step {
-				fileOffset := gHebMB + cur
+				fileOffset := this.dataSizeNeedToErase + cur
 				count, err := fd.WriteAt(zero, fileOffset)
 				if err != nil || count != len(zero) {
 					printf("failed to write file deeply [%s] err=%s", path, err)
@@ -172,9 +227,9 @@ func eraseOneFile(path string) int {
 	return 0
 }
 
-func erasePart(path string, fd *os.File, startIndex, len int64, zeroArray []byte) int {
+func (this *hebEraseContext) erasePart(path string, fd *os.File, startIndex, len int64, zeroArray []byte) int {
 	array := zeroArray
-	if len < gHebMB {
+	if len < this.dataSizeNeedToErase {
 		array = zeroArray[:len]
 	}
 	count, err := fd.WriteAt(array, startIndex)
@@ -184,4 +239,35 @@ func erasePart(path string, fd *os.File, startIndex, len int64, zeroArray []byte
 	}
 
 	return 0
+}
+
+func (this *hebEraseContext) openListFile() int {
+	this.closeListFile()
+
+	fd, err := os.Open(gHebCfg.fileAboutListFile)
+	if nil != err {
+		printf("failed to open listfile.txt, err=%s", err)
+		return -1
+	}
+	this.fd = fd
+	return 0
+}
+
+func (this *hebEraseContext) closeListFile() {
+	if nil != this.fd {
+		this.fd.Close()
+		this.fd = nil
+	}
+}
+
+func (this *hebEraseContext) needErase(pathLine string) (retPath string, retNeedErase bool) {
+	pathLine = strings.TrimSpace(pathLine)
+	retPath = strings.Trim(pathLine, "\t")
+
+	if strings.HasPrefix(pathLine, "#") || strings.HasPrefix(pathLine, "//") {
+		retNeedErase = false
+		return
+	}
+	retNeedErase = true
+	return
 }

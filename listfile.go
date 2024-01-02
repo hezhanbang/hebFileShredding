@@ -41,7 +41,7 @@ func (this *hebListContext) do(argStartIndex int) int {
 		return -3
 	}
 
-	printf("a total of %d files has been recorded to listfile", this.fileIndex)
+	printf("a total of %d files has been recorded to listfile.txt", this.fileIndex)
 
 	printf("***************************")
 	printf("********** Done ***********")
