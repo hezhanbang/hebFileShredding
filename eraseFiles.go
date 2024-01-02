@@ -87,10 +87,11 @@ func (this *hebEraseContext) do(argStartIndex int, deepErase bool) int {
 		return -1
 	}
 
+	//打开文本文件
 	if ret := this.openListFile(); 0 != ret {
 		return -2
 	}
-	defer this.fd.Close()
+	defer this.closeListFile()
 
 	//逐行读取文本文件
 	fileScanner := bufio.NewScanner(this.fd)
