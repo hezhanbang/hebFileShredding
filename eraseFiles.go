@@ -25,7 +25,7 @@ type hebEraseContext struct {
 /*
 用全零填充文件开始1MB的数据，
 用全零填充文件末尾1MB的数据，
-文件中间的数据不处理。
+文件中间的数据随机处理。
 */
 func (this *hebEraseContext) init(deepErase bool) int {
 	this.deepEraseMode = deepErase
@@ -129,23 +129,24 @@ func (this *hebEraseContext) do(argStartIndex int, deepErase bool) int {
 
 func (this *hebEraseContext) eraseOneFile(path string) int {
 	//打开需要被擦除的文件
-	fd, ok := this.openFileNeedToErase(path)
-	if ok && nil == fd {
+	fdToErase, gotErr := this.openFileNeedToErase(path)
+	if gotErr {
+		return -1
+	}
+
+	//文件不存在。
+	if nil == fdToErase {
 		return 0
 	}
 
-	defer func() {
-		if nil != fd {
-			fd.Close()
-			fd = nil
-		}
-	}()
+	assert(nil != fdToErase)
+	defer fdToErase.Close()
 
 	//检查文件信息
-	sta, err := fd.Stat()
+	sta, err := fdToErase.Stat()
 	if nil != err {
 		printf("failed to get file info to erase, err=%s", err)
-		return -1
+		return -2
 	}
 
 	if sta.IsDir() {
@@ -155,21 +156,21 @@ func (this *hebEraseContext) eraseOneFile(path string) int {
 
 	filesize := sta.Size()
 	if filesize <= 0 {
-		printf("skipped the file, because its file size is 0, No.=%d %s", this.fileIndex+1, path)
+		printf("skipped the file, because the file size is 0, No.=%d %s", this.fileIndex+1, path)
 		return 0
 	}
 
 	//开始擦除
-	ret := this.eraseNow(path, fd, filesize)
+	ret := this.eraseNow(path, fdToErase, filesize)
 	if 0 != ret {
-		return -2
+		return -3
 	}
 
 	return 0
 }
 
 // 打开需要被擦除的文件
-func (this *hebEraseContext) openFileNeedToErase(pathNeedErease string) (retDd *os.File, retOK bool) {
+func (this *hebEraseContext) openFileNeedToErase(pathNeedErease string) (retDd *os.File, retErr bool) {
 	fd, err := os.OpenFile(pathNeedErease, os.O_RDWR, 0644)
 	if nil == err {
 		return fd, true
@@ -201,6 +202,7 @@ func (this *hebEraseContext) openFileNeedToErase(pathNeedErease string) (retDd *
 	return fd, true
 }
 
+// 开始擦除单个文件
 func (this *hebEraseContext) eraseNow(pathNeedErease string, fd *os.File, filesize int64) int {
 	if filesize <= this.dataSizeNeedToErase { //文件很小，擦除文件的全部内容
 		ret := this.writeZeroToFile(pathNeedErease, fd, 0, filesize, this.zeroDataForFileStarting)
@@ -273,6 +275,7 @@ func (this *hebEraseContext) randomErase(pathNeedErease string, fd *os.File, fil
 	return 0
 }
 
+// 把全零数据写入文件，以实现文件数据擦除的目的。
 func (this *hebEraseContext) writeZeroToFile(path string, fd *os.File, startIndex, len int64, zeroArray []byte) int {
 	array := zeroArray
 	if len < this.dataSizeNeedToErase {
@@ -287,6 +290,7 @@ func (this *hebEraseContext) writeZeroToFile(path string, fd *os.File, startInde
 	return 0
 }
 
+// 打开`文件列表`文件。
 func (this *hebEraseContext) openListFile() int {
 	this.closeListFile()
 
@@ -299,6 +303,7 @@ func (this *hebEraseContext) openListFile() int {
 	return 0
 }
 
+// 关闭`文件列表`文件。
 func (this *hebEraseContext) closeListFile() {
 	if nil != this.fd {
 		this.fd.Close()
@@ -306,6 +311,7 @@ func (this *hebEraseContext) closeListFile() {
 	}
 }
 
+// 检查`文件列表`文件里的一行数据，如果行首有`//`或者`#`，表示不需要执行文件擦除。
 func (this *hebEraseContext) needErase(pathLine string) (retPath string, retNeedErase bool) {
 	pathLine = strings.TrimSpace(pathLine)
 	retPath = strings.Trim(pathLine, "\t")
