@@ -42,7 +42,7 @@ func eraseFiles(argStartIndex int, deepErase bool) int {
 		gHebZeroArray_end[offset+i] = mark[i]
 	}
 
-	readFile, err := os.Open(gHebTxtPath)
+	readFile, err := os.Open(gHebCfg.fileAboutListFile)
 	if nil != err {
 		printf("failed to open txt file, err=%s", err)
 		return -1

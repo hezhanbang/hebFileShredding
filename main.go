@@ -78,7 +78,7 @@ func main() {
 
 	//调用子命令模块
 	if "listfile" == cmd {
-		ret = listFile(index + 1)
+		ret = gHebList.do(index + 1)
 	} else if "erase" == cmd {
 		ret = eraseFiles(index+1, false)
 	} else if "deepErase" == cmd {

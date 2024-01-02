@@ -8,18 +8,21 @@ import (
 	"strings"
 )
 
-var gHebTxtPath string
-var gHebFd *os.File
-var gHebFileIndex int = 0
+var gHebList hebListContext
 
-func listFile(argStartIndex int) int {
+type hebListContext struct {
+	fd        *os.File
+	fileIndex int
+}
+
+func (this *hebListContext) do(argStartIndex int) int {
+	//create list file
 	{
-		//create list file
 		var err error
-		gHebFd, err = os.Create(gHebTxtPath)
+		this.fd, err = os.Create(gHebCfg.fileAboutListFile)
 		if nil != err {
-			printf("failed to create listfile.txt err=%s", err)
-			return -4
+			printf("failed to create listfile.txt. %s err=%s", gHebCfg.fileAboutListFile, err)
+			return -1
 		}
 	}
 
@@ -30,7 +33,7 @@ func listFile(argStartIndex int) int {
 		if info.IsDir() {
 			return nil
 		}
-		return filePath2File(path)
+		return this.filePath2File(path)
 
 	})
 	if err2 != nil {
@@ -38,13 +41,15 @@ func listFile(argStartIndex int) int {
 		return -3
 	}
 
+	printf("a total of %d files has been recorded to listfile", this.fileIndex)
+
 	printf("***************************")
 	printf("********** Done ***********")
 	printf("***************************")
 	return 0
 }
 
-func filePath2File(pathNeedErase string) (err error) {
+func (this *hebListContext) filePath2File(pathNeedErase string) (err error) {
 	//数据文件夹和本可执行文件，不需要擦除。
 	if pathNeedErase == gHebCfg.exePath {
 		return nil
@@ -53,11 +58,11 @@ func filePath2File(pathNeedErase string) (err error) {
 		return nil
 	}
 
-	_, err = gHebFd.WriteString(fmt.Sprintf("%s\n", pathNeedErase))
+	_, err = this.fd.WriteString(fmt.Sprintf("%s\n", pathNeedErase))
 	if nil != err {
 		return
 	}
-	gHebFileIndex++
+	this.fileIndex++
 
 	return nil
 }
