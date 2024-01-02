@@ -27,8 +27,8 @@ type hebEraseContext struct {
 用全零填充文件末尾1MB的数据，
 文件中间的数据随机处理。
 */
-func (this *hebEraseContext) init(deepErase bool) int {
-	this.deepEraseMode = deepErase
+func (this *hebEraseContext) init(args []string) int {
+	this.deepEraseMode = false
 
 	this.dataSizeNeedToErase = (1024 * 1024)
 
@@ -83,7 +83,7 @@ func (this *hebEraseContext) init(deepErase bool) int {
 }
 
 func (this *hebEraseContext) do(args []string) int {
-	if ret := this.init(false); 0 != ret {
+	if ret := this.init(args); 0 != ret {
 		return -1
 	}
 
