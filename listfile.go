@@ -8,22 +8,12 @@ import (
 	"strings"
 )
 
-var gHebDataDir string
 var gHebTxtPath string
 var gHebFd *os.File
 var gHebFileIndex int = 0
 
 func listFile(argStartIndex int) int {
 	{
-		ret := getDataDir()
-		if 0 != ret {
-			return ret
-		}
-		getFilelistPath()
-		if filepath.Separator != gHebDataDir[len(gHebDataDir)-1] {
-			gHebDataDir += string(filepath.Separator)
-		}
-
 		//create list file
 		var err error
 		gHebFd, err = os.Create(gHebTxtPath)
@@ -33,14 +23,14 @@ func listFile(argStartIndex int) int {
 		}
 	}
 
-	err2 := filepath.WalkDir(gHebExeDir, func(path string, info fs.DirEntry, err error) error {
+	err2 := filepath.WalkDir(gHebCfg.workDir, func(path string, info fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 		if info.IsDir() {
 			return nil
 		}
-		return saveFilePath(path)
+		return filePath2File(path)
 
 	})
 	if err2 != nil {
@@ -54,34 +44,20 @@ func listFile(argStartIndex int) int {
 	return 0
 }
 
-func saveFilePath(path string) (err error) {
-	if path == gHebExePath {
+func filePath2File(pathNeedErase string) (err error) {
+	//数据文件夹和本可执行文件，不需要擦除。
+	if pathNeedErase == gHebCfg.exePath {
+		return nil
+	}
+	if strings.HasPrefix(pathNeedErase, gHebCfg.dataDir) {
 		return nil
 	}
 
-	if strings.HasPrefix(path, gHebDataDir) {
-		return nil
-	}
-
-	_, err = gHebFd.WriteString(fmt.Sprintf("%s\n", path))
+	_, err = gHebFd.WriteString(fmt.Sprintf("%s\n", pathNeedErase))
 	if nil != err {
 		return
 	}
 	gHebFileIndex++
 
 	return nil
-}
-
-func getDataDir() int {
-	gHebDataDir = filepath.Join(gHebExeDir, "hebEraseData")
-	err := os.MkdirAll(gHebDataDir, os.ModePerm)
-	if nil != err {
-		printf("failed to MkdirAll err=%s", err)
-		return -2
-	}
-	return 0
-}
-
-func getFilelistPath() {
-	gHebTxtPath = filepath.Join(gHebDataDir, "listfile.txt")
 }

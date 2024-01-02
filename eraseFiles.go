@@ -21,12 +21,6 @@ var gHebDeepErase = false
 func eraseFiles(argStartIndex int, deepErase bool) int {
 	gHebDeepErase = deepErase
 
-	ret := getDataDir()
-	if 0 != ret {
-		return ret
-	}
-	getFilelistPath()
-
 	//zero 1
 	gHebZeroArray_start = make([]byte, gHebMB)
 	for i := int64(0); i < gHebMB; i++ {
@@ -63,7 +57,7 @@ func eraseFiles(argStartIndex int, deepErase bool) int {
 		//fmt.Println(fileScanner.Text())
 
 		path := fileScanner.Text()
-		ret = eraseOneFile(path)
+		ret := eraseOneFile(path)
 		if 0 != ret {
 			printf("failed to eraseOneFile %s, ret=%d", path, ret)
 			return -2

@@ -1,43 +1,72 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 )
 
-var gHebExePath string
-var gHebExeDir string
-var gHebExeName string
+var gHebCfg hebCfg
 
-func main() {
-	gHebExePath, _ = os.Executable()
-	gHebExePath, _ = filepath.Abs(gHebExePath)
+type hebCfg struct {
+	workDir           string
+	dataDir           string
+	fileAboutListFile string
 
-	exeDir := filepath.Dir(gHebExePath)
+	exePath string
+	exeDir  string
+	exeName string
+}
+
+func (this *hebCfg) init() int {
+	//about exe file
+	this.exePath, _ = os.Executable()
+	this.exePath, _ = filepath.Abs(this.exePath)
+
+	exeDir := filepath.Dir(this.exePath)
 	if len(exeDir) <= 1 {
-		printf("failed to get currrent dir")
-		os.Exit(1)
-		return
+		printf("failed to get dir from exe path")
+		return -1
 	}
-	gHebExeDir = exeDir
+	this.exeDir = exeDir
 
-	exeName := filepath.Base(gHebExePath)
+	exeName := filepath.Base(this.exePath)
 	if len(exeName) <= 1 {
 		printf("failed to get exe file name")
-		os.Exit(2)
+		return -2
+	}
+	this.exeName = exeName
+
+	this.workDir, _ = os.Getwd()
+
+	//data dir
+	dataDir := filepath.Join(this.workDir, ".hebFileShredding")
+	err := os.MkdirAll(dataDir, os.ModePerm)
+	if nil != err {
+		printf("failed to MkdirAll for data dir, err=%s", err)
+		return -3
+	}
+	//dataDir must end with '/' or '\'
+	if filepath.Separator != dataDir[len(dataDir)-1] {
+		dataDir += string(filepath.Separator)
+	}
+	this.dataDir = dataDir
+
+	//a file which contains all file path from `listfile` command
+	this.fileAboutListFile = filepath.Join(this.dataDir, "listfile.txt")
+
+	return 0
+}
+
+func main() {
+	if ret := gHebCfg.init(); 0 != ret {
+		os.Exit(ret)
 		return
 	}
-	gHebExeName = exeName
-	exeNotExt := exeName
-	if strings.HasSuffix(strings.ToLower(exeNotExt), ".exe") {
-		exeNotExt = exeNotExt[0 : len(exeNotExt)-4]
-	}
 
-	//获得指令
-	cmd, index := getTopCommand(exeNotExt)
+	//获得顶级指令
+	cmd, index := getTopCommand(gHebCfg.exeName)
 	ret := 100
 
 	//myTest()
@@ -85,6 +114,10 @@ func getTopCommand(exeNotExt string) (cmd string, location int) {
 		bash ./xxxx.out listfile
 	*/
 
+	if strings.HasSuffix(strings.ToLower(exeNotExt), ".exe") || strings.HasSuffix(strings.ToLower(exeNotExt), ".out") {
+		exeNotExt = exeNotExt[0 : len(exeNotExt)-4]
+	}
+
 	if len(os.Args) < 2 {
 		return "", -1
 	}
@@ -96,22 +129,4 @@ func getTopCommand(exeNotExt string) (cmd string, location int) {
 		return "", -2
 	}
 	return os.Args[2], 2
-}
-
-func myTest() {
-	defer os.Exit(0)
-
-	file2 := "D:\\hebStreamMedia\\test\\clean\\.git\\objects\\0e\\960ae110c992d92e84528b474c352cda982019"
-	_, err := os.OpenFile(file2, os.O_RDWR, 0644)
-	if nil != err {
-		if errors.Is(err, os.ErrNotExist) {
-			return
-		}
-		if errors.Is(err, os.ErrPermission) {
-			err = os.Chmod(file2, 0644)
-			return
-		}
-		printf("failed to open file to erase, err=%s", err)
-		return
-	}
 }
