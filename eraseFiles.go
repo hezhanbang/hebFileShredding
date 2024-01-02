@@ -55,16 +55,10 @@ func (this *hebEraseContext) init(deepErase bool) int {
 		this.zeroDataForFileEnding[offset+i] = mark[i]
 	}
 
-	fd, err := os.Open(gHebCfg.fileAboutListFile)
-	if nil != err {
-		printf("failed to open listfile.txt, err=%s", err)
-		return -1
-	}
-	this.fd = fd
-
 	//获取需要被擦除的文件总数。
 	{
 		this.openListFile()
+
 		//逐行读取文本文件
 		fileScanner := bufio.NewScanner(this.fd)
 		fileScanner.Split(bufio.ScanLines)
@@ -76,6 +70,8 @@ func (this *hebEraseContext) init(deepErase bool) int {
 				this.total++
 			}
 		}
+
+		this.closeListFile()
 
 		if nil != fileScanner.Err() {
 			printf("failed to Scan txt file, err=%s", fileScanner.Err())
