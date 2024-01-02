@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"crypto/rand"
 	"errors"
+	"flag"
 	"math/big"
 	"os"
 	"strings"
@@ -15,20 +16,48 @@ type hebEraseContext struct {
 	dataSizeNeedToErase     int64
 	zeroDataForFileStarting []byte
 	zeroDataForFileEnding   []byte
-	deepEraseMode           bool
+	mode                    modeType
+	cmd                     string
 
 	fd        *os.File
 	fileIndex int
 	total     int
 }
 
+type modeType int
+
+const (
+	MODE_UNKNOWN modeType = 0
+	MODE_SIMPLE  modeType = 1
+	MODE_RANDOM  modeType = 2
+)
+
 /*
 用全零填充文件开始1MB的数据，
 用全零填充文件末尾1MB的数据，
 文件中间的数据随机处理。
 */
-func (this *hebEraseContext) init(args []string) int {
-	this.deepEraseMode = false
+func (this *hebEraseContext) init(cmd string, args []string) int {
+	modeKey := "mode"
+	modeSimple := "simple"
+	modeRandom := "random"
+
+	mode := ""
+	flag.StringVar(&mode, modeKey, modeSimple, "可用参数值: "+modeSimple+" / "+modeRandom+"\n"+
+		"  simple: 根据[listfile.txt]，擦写文件开头1MB内容和文件结尾1MB内容\n"+
+		"  random: 根据[listfile.txt]，擦写文件中间段的内容，以随机的方式修改少量数据")
+
+	flag.Parse()
+
+	if mode == modeSimple {
+		this.mode = MODE_SIMPLE
+	} else if mode == modeRandom {
+		this.mode = MODE_RANDOM
+	} else {
+		printf("bad value for mode option. for more help please enter: %s %s --help", gHebCfg.exeName, cmd)
+	}
+
+	this.cmd = cmd
 
 	this.dataSizeNeedToErase = (1024 * 1024)
 
@@ -82,8 +111,8 @@ func (this *hebEraseContext) init(args []string) int {
 	return 0
 }
 
-func (this *hebEraseContext) do(args []string) int {
-	if ret := this.init(args); 0 != ret {
+func (this *hebEraseContext) do(cmd string, args []string) int {
+	if ret := this.init(cmd, args); 0 != ret {
 		return -1
 	}
 
@@ -220,7 +249,7 @@ func (this *hebEraseContext) eraseNow(pathNeedErease string, fd *os.File, filesi
 
 // 擦除大文件
 func (this *hebEraseContext) eraseBigFile(pathNeedErease string, fd *os.File, filesize int64) int {
-	if false == this.deepEraseMode {
+	if MODE_SIMPLE == this.mode {
 		//填充文件开始1MB的数据
 		ret := this.writeZeroToFile(pathNeedErease, fd, 0, this.dataSizeNeedToErase, this.zeroDataForFileStarting)
 		if 0 != ret {
@@ -233,6 +262,8 @@ func (this *hebEraseContext) eraseBigFile(pathNeedErease string, fd *os.File, fi
 		}
 	} else {
 		//深度擦写，随机擦写文件中间的个别内容
+		assert(MODE_RANDOM == this.mode)
+
 		ret := this.randomErase(pathNeedErease, fd, filesize)
 		if 0 != ret {
 			return -3

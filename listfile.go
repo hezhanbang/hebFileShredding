@@ -11,11 +11,12 @@ import (
 var gHebList hebListContext
 
 type hebListContext struct {
+	cmd       string
 	fd        *os.File
 	fileIndex int
 }
 
-func (this *hebListContext) do(args []string) int {
+func (this *hebListContext) do(cmd string, args []string) int {
 	//create list file
 	{
 		var err error
