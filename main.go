@@ -40,6 +40,7 @@ func main() {
 	os.Exit(ret)
 }
 
+// 打印参数用法
 func cmdUsage() int {
 	/*
 		fmt.Printf("please use the comand argument: listfile / erase / deepErase\n\n")
@@ -55,6 +56,7 @@ func cmdUsage() int {
 	return 101
 }
 
+// 从命令行里获取顶层命令
 func getTopCommand(exeNotExt string) (cmd string, location int) {
 	/*
 		./xxxx.out listfile
@@ -65,6 +67,7 @@ func getTopCommand(exeNotExt string) (cmd string, location int) {
 		exeNotExt = exeNotExt[0 : len(exeNotExt)-4]
 	}
 
+	//第一个参数一般是可执行文件，顶层命令位于第二个参数。
 	if len(os.Args) < 2 {
 		return "", -1
 	}
@@ -72,6 +75,7 @@ func getTopCommand(exeNotExt string) (cmd string, location int) {
 		return os.Args[1], 1
 	}
 
+	//第二个参数是可执行文件，顶层命令位于第三个参数。
 	if len(os.Args) < 3 {
 		return "", -2
 	}
