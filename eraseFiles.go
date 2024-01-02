@@ -90,6 +90,10 @@ func (this *hebEraseContext) do(argStartIndex int, deepErase bool) int {
 	if ret := this.init(deepErase); 0 != ret {
 		return -1
 	}
+
+	if ret := this.openListFile(); 0 != ret {
+		return -2
+	}
 	defer this.fd.Close()
 
 	//逐行读取文本文件
@@ -99,25 +103,25 @@ func (this *hebEraseContext) do(argStartIndex int, deepErase bool) int {
 
 	for fileScanner.Scan() {
 		fileNeedToErase := fileScanner.Text()
-		printf("erasing (%d/%d): %s", this.fileIndex, this.total, fileNeedToErase)
+		printf("erasing (%d/%d): %s", this.fileIndex+1, this.total, fileNeedToErase)
 
 		fileNeedToErase, ok = this.needErase(fileNeedToErase)
 		if false == ok {
-			printf("skip the file %s", fileNeedToErase)
+			printf("skipped the file No.=%d %s", this.fileIndex+1, fileNeedToErase)
 			continue
 		}
 
 		ret := this.eraseOneFile(fileNeedToErase)
 		if 0 != ret {
-			printf("failed to erase one file, index=%d, %s, ret=%d", this.fileIndex, fileNeedToErase, ret)
-			return -2
+			printf("failed to erase one file, No.=%d, %s, ret=%d", this.fileIndex+1, fileNeedToErase, ret)
+			return -3
 		}
 		this.fileIndex++
 	}
 
 	if nil != fileScanner.Err() {
 		printf("failed to Scan txt file, err=%s", fileScanner.Err())
-		return -3
+		return -4
 	}
 
 	printf("***************************")
@@ -131,6 +135,7 @@ func (this *hebEraseContext) eraseOneFile(path string) int {
 	fd, err := os.OpenFile(path, os.O_RDWR, 0644)
 	if nil != err {
 		if errors.Is(err, os.ErrNotExist) {
+			printf("skipped the file, because it does not exist, No.=%d %s", this.fileIndex+1, path)
 			return 0
 		}
 
@@ -168,11 +173,13 @@ func (this *hebEraseContext) eraseOneFile(path string) int {
 	}
 
 	if sta.IsDir() {
+		printf("skipped the file, because it is dir, No.=%d %s", this.fileIndex+1, path)
 		return 0
 	}
 
 	filesize := sta.Size()
 	if filesize <= 0 {
+		printf("skipped the file, because its file size is 0, No.=%d %s", this.fileIndex+1, path)
 		return 0
 	}
 
