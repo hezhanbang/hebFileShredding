@@ -61,7 +61,7 @@ func (this *hebEraseContext) init(cmd string, args []string) int {
 		} else if *mode == modeRandom {
 			this.mode = MODE_RANDOM
 		} else {
-			printf("bad value for mode option. for more help please enter: %s %s --help", gHebCfg.exeName, cmd)
+			printf("bad value for mode option. for more help please enter: \"%s %s --help\"", gHebCfg.exeName, cmd)
 			return -2
 		}
 	}
