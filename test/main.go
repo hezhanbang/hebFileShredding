@@ -17,7 +17,7 @@ func main() {
 		fmt.Println(">>>>> ", a.Name, "value=", a.Value)
 	})
 
-	//命令行参数，需要剔除第一个命令名参数
+	//鍛戒护琛屽弬鏁帮紝闇�瑕佸墧闄ょ涓�涓懡浠ゅ悕鍙傛暟
 	if err := CommandLine.Parse(os.Args[1:]); nil != err {
 		fmt.Printf("err\n")
 		return

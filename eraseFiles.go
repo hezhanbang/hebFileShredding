@@ -38,25 +38,37 @@ const (
 文件中间的数据随机处理。
 */
 func (this *hebEraseContext) init(cmd string, args []string) int {
-	modeKey := "mode"
-	modeSimple := "simple"
-	modeRandom := "random"
+	///////////////////////////////////////////////////////////////////////////
+	////////////////////////////// 转换命令行参数 //////////////////////////////
+	///////////////////////////////////////////////////////////////////////////
+	{
+		CommandLine := flag.NewFlagSet("erase", flag.ExitOnError)
+		//mode参数解析
+		modeKey := "mode"
+		modeSimple := "simple"
+		modeRandom := "random"
 
-	mode := ""
-	flag.StringVar(&mode, modeKey, modeSimple, "可用参数值: "+modeSimple+" / "+modeRandom+"\n"+
-		"  simple: 根据[listfile.txt]，擦写文件开头1MB内容和文件结尾1MB内容\n"+
-		"  random: 根据[listfile.txt]，擦写文件中间段的内容，以随机的方式修改少量数据")
+		mode := CommandLine.String(modeKey, modeSimple, "可用参数值: "+modeSimple+" / "+modeRandom+"\n"+
+			"  simple: 根据[listfile.txt]，擦写文件开头1MB内容和文件结尾1MB内容\n"+
+			"  random: 根据[listfile.txt]，擦写文件中间段的内容，以随机的方式修改少量数据\n")
 
-	flag.Parse()
+		if err := CommandLine.Parse(args); nil != err {
+			return -1
+		}
 
-	if mode == modeSimple {
-		this.mode = MODE_SIMPLE
-	} else if mode == modeRandom {
-		this.mode = MODE_RANDOM
-	} else {
-		printf("bad value for mode option. for more help please enter: %s %s --help", gHebCfg.exeName, cmd)
+		if *mode == modeSimple {
+			this.mode = MODE_SIMPLE
+		} else if *mode == modeRandom {
+			this.mode = MODE_RANDOM
+		} else {
+			printf("bad value for mode option. for more help please enter: %s %s --help", gHebCfg.exeName, cmd)
+			return -2
+		}
 	}
 
+	///////////////////////////////////////////////////////////////////////////
+	///////////////////////////////////////////////////////////////////////////
+	///////////////////////////////////////////////////////////////////////////
 	this.cmd = cmd
 
 	this.dataSizeNeedToErase = (1024 * 1024)
