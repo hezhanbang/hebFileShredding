@@ -47,7 +47,7 @@ func cmdUsage() int {
 	*/
 	fmt.Printf("本软件用于粉碎文件夹里的全部文件内容。\n\n")
 	fmt.Printf("请使用如下的任意一个参数: listfile / erase\n")
-	fmt.Printf(" listfile: 列出当前文件夹下的全部文件，并记录到[hebEraseData/listfile.txt]\n")
+	fmt.Printf(" listfile: 列出当前文件夹下的全部文件，并记录到[./.hebFileShredding/listfile.txt]\n")
 	fmt.Printf("    erase: 根据[listfile.txt]，擦写文件内容\n")
 
 	return 101
